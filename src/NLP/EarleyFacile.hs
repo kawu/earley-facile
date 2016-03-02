@@ -480,9 +480,11 @@ proc i = do
 
 
 -- | Command for the interactive mode.
-data Command
+data Command n
     = Print Pos Bool
     -- ^ Print a specific chart column
+    | Axiom n
+    -- ^ Process the entire column
     | Quick Pos 
     -- ^ Process the entire column
     | Proc ID 
@@ -510,7 +512,13 @@ optID = argument auto
    <> help "Chart item ID" )
 
 
-opts :: Parser Command
+optNonTerm :: Read n => Parser n
+optNonTerm = argument auto
+    ( metavar "NON-TERM"
+   <> help "Start non-terminal" )
+
+
+opts :: Read n => Parser (Command n)
 opts = subparser
         ( command "print"
             (info (Print <$> optColumn <*> optVerbose)
@@ -528,15 +536,22 @@ opts = subparser
             (info (Quick <$> optColumn)
                 (progDesc "Process the entire column")
                 )
+        <> command "axiom"
+            (info (Axiom <$> optNonTerm)
+                (progDesc "Axiom against the given non-terminal")
+                )
         )
 
 
 -- | Run the given command.
 run :: (Ord n, Ord t, Show n, Show t)
-    => Command -> Earley n t ()
+    => Command n -> Earley n t ()
 run (Print k v) = do
     h <- RWS.get
     liftIO $ printColumn k v h
+run (Axiom start) = P.runListT $ do
+    q <- axiom start
+    lift (push0 q)
 run (Proc i) = proc i
 run (Forest i) = do
     mayQ <- M.lookup i <$> RWS.gets idMap
@@ -561,7 +576,9 @@ run (Quick k) = do
 
 
 -- | Main loop.
-loop :: (Ord n, Ord t, Show n, Show t) => Earley n t ()
+loop
+    :: (Ord n, Ord t, Show n, Show t, Read n)
+    => Earley n t ()
 loop = do
     liftIO $ do
         putStr "> "
@@ -579,23 +596,22 @@ loop = do
 
 -- | Run the parser on the given grammar and the given input.
 runEarley
-    :: (Ord n, Ord t, Show n, Show t)
-    => n                    -- ^ Start symbol
-    -> [(n, [Either n t])]  -- ^ The grammar 
+    :: (Ord n, Ord t, Show n, Show t, Read n)
+    => [(n, [Either n t])]  -- ^ The grammar 
     -> [[t]]                -- ^ The input
     -> IO ()
-runEarley start rules input = void $
-    RWS.execRWST (init >> loop) (map S.fromList input) $ Hype
+runEarley rules input = void $
+    RWS.execRWST loop (map S.fromList input) $ Hype
         { gram = M.fromListWith S.union
             [ (hd, S.singleton bd)
             | (hd, bd) <- rules ]
         , done  = M.empty
         , queue = M.empty
         , idMap = M.empty }
-  where 
-    init = P.runListT $ do
-        q <- axiom start
-        lift (push0 q)
+--   where 
+--     init = P.runListT $ do
+--         q <- axiom start
+--         lift (push0 q)
 
 
 --------------------------------------------------
