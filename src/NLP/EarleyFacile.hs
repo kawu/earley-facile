@@ -99,10 +99,10 @@ data Trav n t
         -- ^ The input active state
         }
     | Comp
-        { _pasArg   :: Item n t
-        -- ^ The passive argument of the action
-        , _actArg   :: Item n t
+        { _actArg   :: Item n t
         -- ^ The active argument of the action
+        , _pasArg   :: Item n t
+        -- ^ The passive argument of the action
         }
     | Pred
     -- ^ Predicted item (we don't care how).
@@ -117,11 +117,11 @@ printTrav (Scan q) = do
     putStr "[S] " 
     printItem q
     putStr ""
-printTrav (Comp p q) = do
+printTrav (Comp q p) = do
     putStr "[C] " 
-    printItem p
-    putStr " + "
     printItem q
+    putStr " + "
+    printItem p
 printTrav Pred = do
     putStr "[P]"
 
@@ -259,7 +259,7 @@ push0 :: (Ord n, Ord t) => Item n t -> Earley n t ()
 push0 q = do
     i <- M.size <$> RWS.gets idMap
     RWS.modify' $ \h -> h
-        { queue = M.insert q S.empty (queue h)
+        { queue = M.insert q (S.singleton Pred) (queue h)
         , idMap = M.insert i q (idMap h) }
 
 
@@ -315,11 +315,11 @@ parsedTrees h@Hype{..} =
         (fromActiveTrav q)
         (travList h q)
     fromActiveTrav _ (Scan q) = 
-        [ mkLeaf t : ts
+        [ ts ++ [mkLeaf t]
         | t  <- take 1 (right q)
         , ts <- fromActive q ]
-    fromActiveTrav _ (Comp p q) =
-        [ t : ts
+    fromActiveTrav _ (Comp q p) =
+        [ ts ++ [t]
         | ts <- fromActive q
         , t  <- fromPassive p ]
     fromActiveTrav _ Pred = [[]]
