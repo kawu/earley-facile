@@ -5,14 +5,14 @@ module NLP.EarleyFacile where
 
 
 import           Prelude hiding (init)
-import           Control.Monad (void, forM_)
+import           Control.Monad (void, forM_, when, msum)
 import qualified Control.Monad.RWS.Strict   as RWS
 import           Control.Monad.IO.Class  (liftIO)
 import           Control.Monad.Trans.Class  (lift)
 import           Options.Applicative hiding (some)
 import           System.IO (hFlush, stdout)
 
-
+import qualified Data.Tree as R
 import           Data.Maybe (maybeToList)
 import qualified Data.Set as S
 import qualified Data.Map.Strict as M
@@ -70,7 +70,18 @@ active = not . passive
 printItem
     :: (Ord n, Ord t, Show n, Show t)
     => Item n t -> IO ()
-printItem = putStr . show
+printItem Item{..} = do
+    putStr "("
+    putStr (show ihead)
+    putStr " -> "
+    putStr (unwords . map showLab $ reverse left)
+    putStr " * "
+    putStr (unwords . map showLab $ right)
+    putStr ", "
+    putStr (show beg)
+    putStr ", "
+    putStr (show end)
+    putStr ")"
 
 
 --------------------------------------------------
@@ -96,6 +107,23 @@ data Trav n t
     | Pred
     -- ^ Predicted item (we don't care how).
     deriving (Show, Eq, Ord)
+
+
+-- | Print the item to stdout.
+printTrav
+    :: (Ord n, Ord t, Show n, Show t)
+    => Trav n t -> IO ()
+printTrav (Scan q) = do
+    putStr "[S] " 
+    printItem q
+    putStr ""
+printTrav (Comp p q) = do
+    putStr "[C] " 
+    printItem p
+    putStr " + "
+    printItem q
+printTrav Pred = do
+    putStr "[P]"
 
 
 --------------------------------------------------
@@ -136,16 +164,41 @@ data Hype n t = Hype
     }
 
 
--- | Print the chart/hypergraph.
-printHype   
+-- -- | Print the chart/hypergraph.
+-- printHype   
+--     :: (Ord n, Ord t, Show n, Show t)
+--     => Hype n t
+--     -> IO ()
+-- printHype Hype{..} = do
+--     forM_ (M.toList idMap) $ \(i, q) -> do
+--         putStr "[" >> putStr (show i) >> putStr "] "
+--         printItem q
+--         putStrLn ""
+
+
+-- | Print single column of the chart/hypergraph.
+printColumn   
     :: (Ord n, Ord t, Show n, Show t)
-    => Hype n t
+    => Pos          -- ^ Which column?
+    -> Bool         -- ^ Verbose?
+    -> Hype n t
     -> IO ()
-printHype Hype{..} = do
-    forM_ (M.toList idMap) $ \(i, q) -> do
-        putStr "[" >> putStr (show i) >> putStr "] "
+printColumn k verbose hype@Hype{..} = do
+    forM_ (M.toList idMap) $ \(i, q) -> when (end q == k) $ do
+        if M.member q done
+            then do
+                putStr "#"
+                putStr (show i)
+                putStr "# "
+            else do
+                putStr "<" 
+                putStr (show i)
+                putStr "> "
         printItem q
         putStrLn ""
+        when verbose $ do
+            forM_ (travList hype q) $ \t -> when (t /= Pred) $ do
+                putStr "  * " >> printTrav t >> putStrLn ""
 
 
 -- | Earley parser monad.  Contains the input sentence (reader)
@@ -206,7 +259,7 @@ push0 :: (Ord n, Ord t) => Item n t -> Earley n t ()
 push0 q = do
     i <- M.size <$> RWS.gets idMap
     RWS.modify' $ \h -> h
-        { done = M.insert q S.empty (done h)
+        { queue = M.insert q S.empty (queue h)
         , idMap = M.insert i q (idMap h) }
 
 
@@ -231,6 +284,59 @@ push q trav = do
         RWS.unless wt . RWS.modify' $ \h ->
             h {idMap = M.insert i q (idMap h)}
 
+
+-- | Move the item from the queue to the set of processed (done)
+-- items. 
+shift :: (Ord n, Ord t) => Item n t -> Earley n t ()
+shift q = do
+    mayTrav <- M.lookup q <$> RWS.gets queue
+    case mayTrav of
+        Nothing -> return ()
+        Just tr -> RWS.modify' $ \h -> h
+            { done  = M.insert q tr (done h)
+            , queue = M.delete q (queue h) }
+
+
+--------------------------------------------------
+-- Parsed trees
+--------------------------------------------------
+
+
+-- | Get the forest of parsed trees for a given item.
+parsedTrees
+    :: (Ord n, Ord t)
+    => Hype n t
+    -> Item n t
+    -> [R.Forest (Either n t)]
+parsedTrees h@Hype{..} = 
+    fromActive
+  where
+    fromActive q = concatMap
+        (fromActiveTrav q)
+        (travList h q)
+    fromActiveTrav _ (Scan q) = 
+        [ mkLeaf t : ts
+        | t  <- take 1 (right q)
+        , ts <- fromActive q ]
+    fromActiveTrav _ (Comp p q) =
+        [ t : ts
+        | ts <- fromActive q
+        , t  <- fromPassive p ]
+    fromActiveTrav _ Pred = [[]]
+    fromPassive q =
+        [ R.Node (Left $ ihead q) ts
+        | ts <- fromActive q ]
+    mkLeaf x = R.Node x []
+
+
+-- | Get the list of traversals for the given item.
+travList
+    :: (Ord n, Ord t)
+    => Hype n t
+    -> Item n t
+    -> [Trav n t]
+travList Hype{..} q = maybe [] S.toList $
+    msum [M.lookup q done, M.lookup q queue]
 
 
 --------------------------------------------------
@@ -323,28 +429,33 @@ proc
 proc i = do
     mayQ <- M.lookup i <$> RWS.gets idMap
     case mayQ of
-        Nothing -> liftIO $ putStrLn "No item with the given ID"
-        Just q  -> do
+      Nothing -> liftIO $ putStrLn "<<no such item>>"
+      Just q  -> do
+        b <- isDone q
+        if b then do
+            liftIO $ putStrLn "<<done>>"
+        else do
+            shift q
             P.runListT $ do
                 p <- predict q
                 lift (push p Pred)
                 liftIO $ do
-                    putStr "PREDICT: "
+                    putStr "[P] "
                     printItem p
                     putStrLn ""
             P.runListT $ do
                 p <- scan q
                 liftIO $ do
-                    putStr "SCAN: "
+                    putStr "[S] "
                     printItem p
                     putStrLn ""
                 lift (push p $ Scan q)
             P.runListT $ do
                 p <- matchLeft q
                 liftIO $ do
-                    putStr "COMPLETE "
+                    putStr "[C] "
                     printItem p
-                    putStr ": "
+                    putStr " => "
                 q' <- complete p q
                 liftIO $ do
                     printItem q'
@@ -370,29 +481,52 @@ proc i = do
 
 -- | Command for the interactive mode.
 data Command
-    = Print
-    -- ^ Print the entire chart
+    = Print Pos Bool
+    -- ^ Print a specific chart column
+    | Quick Pos 
+    -- ^ Process the entire column
     | Proc ID 
     -- ^ Process a specific item  
+    | Forest ID 
+    -- ^ Parse forest for a specific item  
 
 
-procOptions :: Parser ID
-procOptions = option auto
-    ( long "id"
-   <> short 'i'
-   <> metavar "ID"
-   <> help "ID of the item to process" )
+optColumn :: Parser Pos
+optColumn = argument auto
+    ( metavar "POS"
+   <> help "Chart column" )
+
+
+optVerbose :: Parser Bool
+optVerbose = switch
+    ( short 'v'
+   <> long "verbose"
+   <> help "Verbose" )
+
+
+optID :: Parser ID
+optID = argument auto
+    ( metavar "ID"
+   <> help "Chart item ID" )
 
 
 opts :: Parser Command
 opts = subparser
         ( command "print"
-            (info (pure Print)
-                (progDesc "Print the chart")
+            (info (Print <$> optColumn <*> optVerbose)
+                (progDesc "Print the chart column")
                 )
-        <> command "proc"
-            (info (Proc <$> procOptions)
+        <> command "process"
+            (info (Proc <$> optID)
                 (progDesc "Process an item")
+                )
+        <> command "forest"
+            (info (Forest <$> optID)
+                (progDesc "Print parsed forest for an item")
+                )
+        <> command "quick"
+            (info (Quick <$> optColumn)
+                (progDesc "Process the entire column")
                 )
         )
 
@@ -400,10 +534,30 @@ opts = subparser
 -- | Run the given command.
 run :: (Ord n, Ord t, Show n, Show t)
     => Command -> Earley n t ()
-run Print = do
+run (Print k v) = do
     h <- RWS.get
-    liftIO $ printHype h
+    liftIO $ printColumn k v h
 run (Proc i) = proc i
+run (Forest i) = do
+    mayQ <- M.lookup i <$> RWS.gets idMap
+    case mayQ of
+        Nothing -> liftIO $ putStrLn "<<no such item>>"
+        Just q  -> do
+            h <- RWS.get
+            let tss = parsedTrees h q
+            forM_ tss $ \ts -> liftIO $ do
+                putStr . R.drawForest . map (fmap show) $ ts
+                putStrLn "----------------------------------"
+run (Quick k) = do
+    m <- RWS.gets idMap
+    forM_ (M.toList m) $ \(i, q) -> do
+        b <- isWait q
+        when (b && end q == k) $ do
+            liftIO $ do
+                putStr "> "
+                printItem q
+                putStrLn ""
+            proc i
 
 
 -- | Main loop.
@@ -468,3 +622,9 @@ each = P.Select . P.each
 -- | ListT from a maybe.
 some :: Monad m => Maybe a -> P.ListT m a
 some = each . maybeToList
+
+
+-- | Showing labels.
+showLab :: (Show n, Show t) => Either n t -> String
+showLab (Left x) = show x
+showLab (Right x) = show x
