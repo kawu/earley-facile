@@ -11,6 +11,7 @@ import           Control.Monad.IO.Class  (liftIO)
 import           Control.Monad.Trans.Class  (lift)
 import           Options.Applicative hiding (some)
 import           System.IO (hFlush, stdout)
+-- import           System.Environment (getProgName)
 
 import qualified Data.Tree as R
 import           Data.Maybe (maybeToList)
@@ -503,7 +504,7 @@ data Command n
 
 optColumn :: Parser Pos
 optColumn = argument auto
-    ( metavar "POS"
+    ( metavar "COLUMN"
    <> help "Chart column" )
 
 
@@ -529,24 +530,24 @@ optNonTerm = argument auto
 opts :: Read n => Parser (Command n)
 opts = subparser
         ( command "print"
-            (info (Print <$> optColumn <*> optVerbose)
+            (info (helper <*> (Print <$> optColumn <*> optVerbose))
                 (progDesc "Print the chart column")
                 )
         <> command "process"
-            (info (Proc <$> optID)
-                (progDesc "Process an item")
+            (info (helper <*> (Proc <$> optID))
+                (progDesc "Process the specified item")
                 )
         <> command "forest"
-            (info (Forest <$> optID)
-                (progDesc "Print parsed forest for an item")
+            (info (helper <*> (Forest <$> optID))
+                (progDesc "Print parsed forest for the specified item")
                 )
         <> command "quick"
-            (info (Quick <$> optColumn)
+            (info (helper <*> (Quick <$> optColumn))
                 (progDesc "Process the entire column")
                 )
         <> command "axiom"
-            (info (Axiom <$> optNonTerm)
-                (progDesc "Axiom against the given non-terminal")
+            (info (helper <*> (Axiom <$> optNonTerm))
+                (progDesc "Axiom with the given non-terminal")
                 )
         )
 
@@ -593,13 +594,24 @@ loop = do
         hFlush stdout
     line <- liftIO getLine
     let res = execParserPure defaultPrefs
-            (info opts desc) (words line)
-    case getParseResult res of
-        Nothing  -> liftIO $ putStrLn "<<unknown command>>"
-        Just cmd -> run cmd
+            optsExt (words line)
+--     case getParseResult res of
+--         -- Nothing  -> liftIO $ putStrLn "<<unknown command>>"
+--         -- Nothing  -> void . liftIO $ handleParseResult res
+--         Just cmd -> run cmd
+    case res of
+        Success cmd -> run cmd
+        Failure failure -> liftIO $ do
+            putStrLn . fst $ renderFailure failure ""
+            putStrLn ""
+            putStrLn "Available commands: axiom, print, process, forest"
+        _ -> return ()
     loop
   where
-    desc = progDesc "Earley facile"
+    optsExt = info (helper <*> opts) fullDesc
+--        ( fullDesc
+--       <> progDesc "Earley facile"
+--       <> header "earley-facile" )
 
 
 -- | Run the parser on the given grammar and the given input.
