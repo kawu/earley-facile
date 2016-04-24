@@ -19,6 +19,8 @@ import qualified Data.Map.Strict as M
 
 import qualified Pipes as P
 
+import qualified NLP.EarleyFacile.GrammarParser as G
+
 
 --------------------------------------------------
 -- Item
@@ -105,7 +107,7 @@ data Trav n t
         -- ^ The passive argument of the action
         }
     | Pred
-    -- ^ Predicted item (we don't care how).
+    -- ^ Predicted the item (we don't really care how).
     deriving (Show, Eq, Ord)
 
 
@@ -114,11 +116,11 @@ printTrav
     :: (Ord n, Ord t, Show n, Show t)
     => Trav n t -> IO ()
 printTrav (Scan q) = do
-    putStr "[S] " 
+    putStr "[S] "
     printItem q
     putStr ""
 printTrav (Comp q p) = do
-    putStr "[C] " 
+    putStr "[C] "
     printItem q
     putStr " + "
     printItem p
@@ -155,9 +157,9 @@ type TravSet n t = S.Set (Trav n t)
 data Hype n t = Hype
     { gram  :: M.Map n (S.Set [Either n t])
     -- ^ The set of grammar rules
-    , done  :: M.Map (Item n t) (TravSet n t) 
+    , done  :: M.Map (Item n t) (TravSet n t)
     -- ^ The set of *processed* chart items.
-    , queue :: M.Map (Item n t) (TravSet n t) 
+    , queue :: M.Map (Item n t) (TravSet n t)
     -- ^ The set of *waiting* chart items.
     , idMap :: M.Map ID (Item n t)
     -- ^ The map from IDs to items.
@@ -165,7 +167,7 @@ data Hype n t = Hype
 
 
 -- -- | Print the chart/hypergraph.
--- printHype   
+-- printHype
 --     :: (Ord n, Ord t, Show n, Show t)
 --     => Hype n t
 --     -> IO ()
@@ -177,7 +179,7 @@ data Hype n t = Hype
 
 
 -- | Print single column of the chart/hypergraph.
-printColumn   
+printColumn
     :: (Ord n, Ord t, Show n, Show t)
     => Pos          -- ^ Which column?
     -> Bool         -- ^ Verbose?
@@ -191,7 +193,7 @@ printColumn k verbose hype@Hype{..} = do
                 putStr (show i)
                 putStr "# "
             else do
-                putStr "<" 
+                putStr "<"
                 putStr (show i)
                 putStr "> "
         printItem q
@@ -210,7 +212,7 @@ type Earley n t = RWS.RWST [S.Set t] () (Hype n t) IO
 readInput :: Pos -> P.ListT (Earley n t) (S.Set t)
 readInput i = do
     -- ask for the input
-    xs <- RWS.ask 
+    xs <- RWS.ask
     -- just a safe way to retrieve the i-th element
     each . take 1 . drop i $ xs
 
@@ -257,10 +259,16 @@ isWait q = M.member q <$> RWS.gets queue
 -- | Put an axiom item to the hypergraph's queue.
 push0 :: (Ord n, Ord t) => Item n t -> Earley n t ()
 push0 q = do
-    i <- M.size <$> RWS.gets idMap
+--     i <- M.size <$> RWS.gets idMap
+--     RWS.modify' $ \h -> h
+--         { queue = M.insert q (S.singleton Pred) (queue h)
+--         , idMap = M.insert i q (idMap h) }
+    wt <- isWait q
     RWS.modify' $ \h -> h
-        { queue = M.insert q (S.singleton Pred) (queue h)
-        , idMap = M.insert i q (idMap h) }
+        { queue = M.insert q (S.singleton Pred) (queue h) }
+    i <- M.size <$> RWS.gets idMap
+    RWS.unless wt . RWS.modify' $ \h ->
+        h {idMap = M.insert i q (idMap h)}
 
 
 -- | Put an item to the hypergraph, together with the corresponding
@@ -485,12 +493,12 @@ data Command n
     -- ^ Print a specific chart column
     | Axiom n
     -- ^ Process the entire column
-    | Quick Pos 
+    | Quick Pos
     -- ^ Process the entire column
-    | Proc ID 
-    -- ^ Process a specific item  
-    | Forest ID 
-    -- ^ Parse forest for a specific item  
+    | Proc ID
+    -- ^ Process a specific item
+    | Forest ID
+    -- ^ Parse forest for a specific item
 
 
 optColumn :: Parser Pos
@@ -608,10 +616,26 @@ runEarley rules input = void $
         , done  = M.empty
         , queue = M.empty
         , idMap = M.empty }
---   where 
---     init = P.runListT $ do
---         q <- axiom start
---         lift (push0 q)
+
+
+-- | Run the parser on the given grammar and the given input.
+runEarley'
+    :: (Ord n, Ord t, Ord p, Show n, Show t, Show p, Read n)
+    => G.CFG n p t
+    -> [t]                -- ^ The input
+    -> IO ()
+runEarley' cfg sent = void $
+    RWS.execRWST loop input $ Hype
+        { gram = M.fromListWith S.union
+            [ (hd, S.singleton bd)
+            | (hd, bd) <- S.toList (G.rules cfg) ]
+        , done  = M.empty
+        , queue = M.empty
+        , idMap = M.empty }
+  where
+    input =
+      let getPOS t = maybe S.empty id . M.lookup t $ G.lexicon cfg
+      in map getPOS sent
 
 
 --------------------------------------------------

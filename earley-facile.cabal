@@ -25,6 +25,7 @@ library
       , transformers        >= 0.3      && < 0.5
       , pipes               >= 4.1      && < 4.2
       , optparse-applicative    >= 0.12     && < 0.13
+      , split               >= 0.2      && < 0.3
 --       , PSQueue             >= 1.1      && < 1.2
 --       , data-partition      >= 0.3      && < 0.4
 --       , mmorph              >= 1.0      && < 1.1
@@ -40,8 +41,8 @@ library
 --       , time                >= 1.5      && < 1.7
 
     exposed-modules:
---         NLP.Partage.Core
         NLP.EarleyFacile
+      , NLP.EarleyFacile.GrammarParser
 
     ghc-options: -Wall
     cpp-options: -DDebugOn
@@ -53,7 +54,7 @@ executable earley-facile
     build-depends:
         earley-facile
       , base                    >= 4        && < 5
-      -- , optparse-applicative    >= 0.12     && < 0.13
+      , optparse-applicative    >= 0.12     && < 0.13
     hs-source-dirs: tools
     main-is: earley-facile.hs
     ghc-options: -Wall -O2 -threaded -rtsopts
