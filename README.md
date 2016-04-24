@@ -71,7 +71,7 @@ All non-terminals must start with upper-case letters, while terminals (POS tags)
 with lower-case letters.
 
 The lexicon part, which relates concrete words with the corresponding POS tags,
-can be defined for convenience, even though the actuall words do not play any
+is defined for convenience, even though the actuall words do not play any
 role in the underlying parsing algorithm.
 
 You can find the grammar given above and other grammar examples in
@@ -130,8 +130,9 @@ In the example below, only prediction can be applied w.r.t. item `0`.
 >
 ```
 
-In particular, the `process` command searches for all chart items
-which the specified item can complement, as in the example below:
+In particular, the `process` command searches for all (already
+processed, marked with #_#) chart items which the specified item can
+complement, as in the example below:
 ```
 > process 1
 > process 2
