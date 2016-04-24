@@ -1,0 +1,17 @@
+# GRAMMAR
+S  -> NP VP
+NP -> det noun
+NP -> pnoun
+VP -> verb
+VP -> verb NP
+VP -> verb PP
+VP -> verb NP PP
+PP -> prep NP
+
+# LEXICON
+drove 	<- verb
+John 	<- pnoun
+car 	<- noun
+station <- noun
+to 	<- prep
+the 	<- det

@@ -1,0 +1,18 @@
+# Grammar
+S  -> NP VP
+S  -> VP
+VP -> verb
+VP -> verb NP
+NP -> noun
+NP -> det noun
+NP -> det adj noun
+
+# Lexicon
+is 		<- verb
+transplant 	<- noun verb
+procedure 	<- noun
+human 		<- noun
+human		<- adj
+elaborate 	<- adj
+a 		<- det
+an 		<- det
