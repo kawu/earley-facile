@@ -16,7 +16,7 @@ Then clone this repository into a local directory and run:
 
 The command will install the *earley-facile* tool to a directory which depends
 on your OS.  On linux, the default target directory is `~/.local/bin`, thus the
-installed application can be run with:
+installed application will be available at:
 
     ~/.local/bin/earley-facile
 
@@ -44,7 +44,7 @@ this issue, e.g.:
 
 ### Format
 
-Here's an example of a simple CFG grammar:
+Here's an example of a toy CFG grammar:
 ```
 # GRAMMAR
 S  -> NP VP
@@ -65,7 +65,7 @@ to 	<- prep
 the 	<- det
 ```
 
-A CFG rule is defined using the `->` arrow, with the head specified on the
+CFG rules are defined using the `->` arrow, with the head specified on the
 left of the arrow and the body of the rule on its right.
 All non-terminals must start with upper-case letters, while terminals (POS tags)
 with lower-case letters.
@@ -73,10 +73,9 @@ with lower-case letters.
 The lexicon part, which relates concrete words with the corresponding POS tags,
 can be defined for convenience, even though the actuall words do not play any
 role in the underlying parsing algorithm.
-The set of terminals consists of the POS tags used in the grammar rules.
 
-You can find the grammar given above and other examples in the `grammar`
-directory of this repository.
+You can find the grammar given above and other grammar examples in
+the `grammar` directory of this repository.
 
 ### Example
 
@@ -91,9 +90,9 @@ and (b) ask the tool to fire inference rules with respect to selected items.
 ##### Axiom
 
 At the very beginning of the parsing process the chart is empty.
-The only inference rule which can be used is the axiom rule.  It takes a single
-argument which specifies the root non-terminal we want to match over the entire
-input sentence.
+The only inference rule which can be used at this stage is the axiom rule.
+It takes a single argument specifying the root non-terminal to be
+matched against the input sentence.
 For instance, to (eventually) find analyses containing non-terminal `S` in
 their roots, run:
 ```
@@ -110,14 +109,15 @@ by using the `print` command:
 <0> ("S" ->  * "NP" "VP", 0, 0)
 >
 ```
-The `print` command takes one argument -- the ID of the column
-of the chart you want to inspect.
+The `print` command takes one obligatory argument -- the column of
+the chart to be inspected.
 
 ##### Process
 
 The key operation of the parser is implemented by the `process` command,
-which takes the ID of the chart item and considers wheter any of the three
-inference rules of the Earley algorithm can apply to this item.
+which takes as argument the ID of the chart item and considers wheter
+any of the three inference rules of the Earley algorithm can apply to
+this item.
 In the example below, only prediction can be applied w.r.t. item `0`.
 ```
 > process 0
@@ -130,8 +130,8 @@ In the example below, only prediction can be applied w.r.t. item `0`.
 >
 ```
 
-The `process` command searches for all chart items which the specified item can
-complement, as in the example below:
+In particular, the `process` command searches for all chart items
+which the specified item can complement, as in the example below:
 ```
 > process 1
 > process 2
@@ -150,8 +150,8 @@ complement, as in the example below:
 >
 ```
 
-Note that the trace of the applications of the inference rules is stored in the
-underlying chart as well.  To see how the items of the given column were
+The trace of the applications of the inference rules is stored in the
+underlying chart as well.  To see how items of the given column were
 derived, use the `-v` flag of the `print` command:
 ```
 > print -v 1
