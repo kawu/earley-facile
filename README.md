@@ -2,14 +2,14 @@ earley-facile
 =============
 
 **earley-facile** is a simple command-line tool which allows to interactively
-parse context-free grammars using the Earley algorithm.
+parse context-free grammars with the Earley algorithm.
 
 
 Installation
 ------------
 
-It is recommended to install *earley-facile* using [Haskell Tool Stack][stack],
-which you will need to install on your machine beforehand.
+It is recommended to install *earley-facile* using the [Haskell Tool
+Stack][stack], which you will need to install on your machine beforehand.
 Then clone this repository into a local directory and run:
 
     stack install
@@ -75,26 +75,27 @@ can be defined for convenience, even though the actuall words do not play any
 role in the underlying parsing algorithm.
 The set of terminals consists of the POS tags used in the grammar rules.
 
-You can find this and other examples in the `grammar` directory of this repository.
+You can find the grammar given above and other examples in the `grammar`
+directory of this repository.
 
 ### Example
 
-Once you install *earley-facile* and run it using e.g.:
+Once you install *earley-facile* and run it using:
 
     rlwrap earley-facile -i "John drove the car" -c grammars/car.txt
 
-you will enter into a parsing session during which you can (a) query the
-underlying parsing chart, containing all the items generated so far, and (b)
-ask the tool to fire inference rules with respect to a given item, already
-present in the chart.
+you will enter into the parsing session during which you will be able to (a)
+query the underlying parsing chart, containing all the items generated so far,
+and (b) ask the tool to fire inference rules with respect to selected items.
 
 ##### Axiom
 
-At the very beginning the chart is empty.  The only inference rule which
-can be used is the axiom rule.  It takes a single argument which specifies
-the root non-terminal we want to match over the entire input sentence.
-For instance, to (eventually) find analyses with non-terminal `S` in their
-roots, run:
+At the very beginning of the parsing process the chart is empty.
+The only inference rule which can be used is the axiom rule.  It takes a single
+argument which specifies the root non-terminal we want to match over the entire
+input sentence.
+For instance, to (eventually) find analyses containing non-terminal `S` in
+their roots, run:
 ```
 > axiom "S"
 >
@@ -102,19 +103,20 @@ roots, run:
 
 ##### Print
 
-You can immediatelly check if `axiom` has modified the underlying chart:
+You can immediatelly check if `axiom` has modified the underlying chart
+by using the `print` command: 
 ```
 > print 0
 <0> ("S" ->  * "NP" "VP", 0, 0)
 >
 ```
-The `print` command takes one argument, which represents the ID of the column
-of the chart you would like to see.
+The `print` command takes one argument -- the ID of the column
+of the chart you want to inspect.
 
 ##### Process
 
 The key operation of the parser is implemented by the `process` command,
-which takes an ID of the chart item and considers wheter any of the three
+which takes the ID of the chart item and considers wheter any of the three
 inference rules of the Earley algorithm can apply to this item.
 In the example below, only prediction can be applied w.r.t. item `0`.
 ```
@@ -128,8 +130,8 @@ In the example below, only prediction can be applied w.r.t. item `0`.
 >
 ```
 
-The `process` command looks for all chart items which the specified item could
-potentially complement, as in the example below:
+The `process` command searches for all chart items which the specified item can
+complement, as in the example below:
 ```
 > process 1
 > process 2
@@ -149,7 +151,7 @@ potentially complement, as in the example below:
 ```
 
 Note that the trace of the applications of the inference rules is stored in the
-underlying chart as well.  To see how the items of the given column where
+underlying chart as well.  To see how the items of the given column were
 derived, use the `-v` flag of the `print` command:
 ```
 > print -v 1
@@ -174,7 +176,7 @@ Left "NP"
 ```
 Once you get to the very end of the parsing process, you will be able to obtain
 parse forests for items representing analyses matching the entire input
-sentence.
+sentence:
 ```
 ...
 > print 4
